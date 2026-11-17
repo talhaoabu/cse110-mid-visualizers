@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CSE110 Visualizers</title>
+<meta name="description" content="BRACU CSE110 ল্যাব অ্যাসাইনমেন্টের ইন্টারঅ্যাক্টিভ ভিজুয়ালাইজার: Branching, Linear Loop, Nested Loop।">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+Da+2:wght@600;700&family=Hind+Siliguri:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: one column index, three numbered assignment rows in course order */
+:root{
+  --bg:#f3f4f7; --panel:#ffffff; --ink:#151b2e; --mute:#5d6578; --line:#dde1ea; --accent:#3646c9; --accent-soft:#e3e6fb;
+  --f-display:"Baloo Da 2","Hind Siliguri",system-ui,sans-serif; --f-body:"Hind Siliguri",system-ui,sans-serif; --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root{--bg:#0f1220;--panel:#171b2c;--ink:#e7eaf4;--mute:#9aa3b8;--line:#2a3048;--accent:#8b97ff;--accent-soft:#272e57;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:48px 64px}
+main{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+.kicker{font-family:var(--f-mono);font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}
+h1{font-family:var(--f-display);font-size:clamp(34px,7vw,52px);line-height:1.05;margin:6px 0 10px;text-wrap:balance}
+h1 span{color:var(--accent)}
+.lead{margin:0;color:var(--mute);max-width:60ch}
+ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+a.card{display:grid;grid-template-columns:auto 1fr auto;gap:18px;align-items:center;text-decoration:none;color:inherit;
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;transition:border-color .15s,transform .15s}
+a.card:hover{border-color:var(--accent);transform:translateY(-1px)}
+a.card:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.num{font-family:var(--f-mono);font-weight:600;font-size:13px;color:var(--accent);background:var(--accent-soft);border-radius:8px;padding:6px 9px;white-space:nowrap}
+.txt{min-width:0}
+.txt h2{font-family:var(--f-display);font-size:22px;line-height:1.2;margin:0}
+.txt p{margin:2px 0 0;color:var(--mute);font-size:14.5px}
+.go{font-size:20px;color:var(--mute)}
+footer{color:var(--mute);font-size:13px;border-top:1px solid var(--line);padding-top:16px}
+@media (max-width:520px){a.card{grid-template-columns:1fr;gap:8px}.go{display:none}.num{justify-self:start}}
+@media (prefers-reduced-motion:reduce){a.card{transition:none}a.card:hover{transform:none}}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="kicker">CSE110 · Programming Language I · BRAC University</div>
+    <h1>Java <span>ভিজুয়ালাইজার</span></h1>
+    <p class="lead">ল্যাব অ্যাসাইনমেন্টের প্রতিটা প্রশ্নের কোড লাইন ধরে চালিয়ে দেখো: কোন লাইন চলছে, কোন ভ্যারিয়েবল বদলাচ্ছে, আর আউটপুট কীভাবে আসছে।</p>
+  </header>
+  <ol>
+    <li><a class="card" href="branching.html"><span class="num">Lab 02</span><span class="txt"><h2>Branching</h2><p>if, else if, else আর নেস্টেড শর্ত</p></span><span class="go" aria-hidden="true">→</span></a></li>
+    <li><a class="card" href="linear-loop.html"><span class="num">Lab 03</span><span class="txt"><h2>Linear Loop</h2><p>while, for, break আর ডিজিট নিয়ে কাজ · ১৫টা প্রশ্ন + ৩টা ট্রেসিং</p></span><span class="go" aria-hidden="true">→</span></a></li>
+    <li><a class="card" href="nested-loop.html"><span class="num">Lab 04</span><span class="txt"><h2>Nested Loop</h2><p>লুপের ভেতরে লুপ, continue, break আর flag · ১৫টা প্রশ্ন + ৩টা ট্রেসিং</p></span><span class="go" aria-hidden="true">→</span></a></li>
+  </ol>
+  <footer>প্রতিটা পেজে ডার্ক/লাইট মোড আছে। কিবোর্ডে ← → দিয়ে ধাপে ধাপে এগোনো যায়।</footer>
+</main>
+</body>
+</html>

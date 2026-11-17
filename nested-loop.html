@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nested Loop Stepper</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+Da+2:wght@600;700&family=Hind+Siliguri:wght@400;500;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: debugger workbench — problem rail on the left, code + live state side by side, controls docked under the code */
+:root{
+  --bg:#f3f4f7; --panel:#ffffff; --ink:#151b2e; --mute:#5d6578; --line:#dde1ea; --soft:#eef0f5;
+  --accent:#3646c9; --accent-soft:#e3e6fb; --hit:#fff1c2; --hit-edge:#e3b330; --changed:#dff5e7;
+  --easy:#2f855a; --easy-bg:#e4f3ea; --mid:#a86a12; --mid-bg:#fbefd9; --hard:#c0392b; --hard-bg:#fbe3e0; --trace:#3646c9; --trace-bg:#e3e6fb;
+  --kw:#6d28d9; --str:#0f766e; --num:#c2410c; --com:#8a93a6; --cls:#1d4ed8;
+  --console:#141a2c; --console-ink:#d7f5e1;
+  --f-display:"Baloo Da 2","Hind Siliguri",system-ui,sans-serif;
+  --f-body:"Hind Siliguri",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1220; --panel:#171b2c; --ink:#e7eaf4; --mute:#9aa3b8; --line:#2a3048; --soft:#20263a;
+  --accent:#8b97ff; --accent-soft:#272e57; --hit:#3a3218; --hit-edge:#d9a92c; --changed:#183a28;
+  --easy:#6fd39b; --easy-bg:#173426; --mid:#f0b45a; --mid-bg:#3a2a12; --hard:#ff8a7c; --hard-bg:#3d1c19; --trace:#8b97ff; --trace-bg:#272e57;
+  --kw:#c4a5ff; --str:#5fd4c4; --num:#ffa26b; --com:#6d7690; --cls:#86a8ff;
+  --console:#090c16; --console-ink:#bff0d1; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1220; --panel:#171b2c; --ink:#e7eaf4; --mute:#9aa3b8; --line:#2a3048; --soft:#20263a;
+  --accent:#8b97ff; --accent-soft:#272e57; --hit:#3a3218; --hit-edge:#d9a92c; --changed:#183a28;
+  --easy:#6fd39b; --easy-bg:#173426; --mid:#f0b45a; --mid-bg:#3a2a12; --hard:#ff8a7c; --hard-bg:#3d1c19; --trace:#8b97ff; --trace-bg:#272e57;
+  --kw:#c4a5ff; --str:#5fd4c4; --num:#ffa26b; --com:#6d7690; --cls:#86a8ff;
+  --console:#090c16; --console-ink:#bff0d1; color-scheme:dark}
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:18px 40px}
+.wrap{max-width:1320px;margin:0 auto;display:grid;grid-template-columns:250px minmax(0,1fr);gap:18px}
+header.top{grid-column:1/-1;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-bottom:6px;border-bottom:1px solid var(--line)}
+header.top h1{font-family:var(--f-display);font-size:30px;line-height:1.1;margin:0;font-weight:700;letter-spacing:-.01em}
+header.top h1 span{color:var(--accent)}
+header.top p{margin:2px 0 0;color:var(--mute);font-size:13.5px}
+.topright{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.themebtn{font:inherit;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:20px;padding:4px 12px 4px 8px;cursor:pointer;min-height:32px}
+.themebtn:hover{border-color:var(--accent)}
+.themebtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.themebtn .ic{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-size:13px}
+.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--mute)}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle}
+
+/* rail */
+nav.rail{align-self:start;position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px);display:flex;flex-direction:column;gap:14px}
+.group h2{font-family:var(--f-display);font-size:15px;margin:0 0 4px;font-weight:700;display:flex;align-items:center;gap:7px}
+.group h2 i{width:9px;height:9px;border-radius:50%}
+.group ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.group button{all:unset;cursor:pointer;display:grid;grid-template-columns:34px 1fr;align-items:center;gap:6px;width:100%;padding:5px 8px;border-radius:7px;font-size:13.5px;line-height:1.35;box-sizing:border-box}
+.group button b{font-family:var(--f-mono);font-size:11.5px;font-weight:600;color:var(--mute)}
+.group button:hover{background:var(--soft)}
+.group button[aria-current="true"]{background:var(--accent-soft);color:var(--ink)}
+.group button[aria-current="true"] b{color:var(--accent)}
+.group button:focus-visible,.ctl button:focus-visible,.ctl input:focus-visible,.inp input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+select.mob{display:none;width:100%;font:inherit;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink)}
+
+/* main */
+main{min-width:0;display:flex;flex-direction:column;gap:14px}
+.qcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:8px}
+.qhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.qhead .pid{font-family:var(--f-mono);font-weight:600;font-size:13px;background:var(--ink);color:var(--panel);border-radius:5px;padding:1px 8px}
+.qhead h2{font-family:var(--f-display);font-size:23px;line-height:1.2;margin:0;flex:1;min-width:0;text-wrap:balance}
+.pill{font-size:12px;font-weight:600;border-radius:20px;padding:1px 10px}
+.l-sub{background:var(--accent-soft);color:var(--accent)}
+.l-easy{background:var(--easy-bg);color:var(--easy)} .l-mid{background:var(--mid-bg);color:var(--mid)} .l-hard{background:var(--hard-bg);color:var(--hard)} .l-trace{background:var(--trace-bg);color:var(--trace)}
+.qsrc{font-size:12.5px;color:var(--mute);margin-top:-4px}
+.qtext{margin:0;max-width:75ch}
+.idea{margin:0;font-size:14px;color:var(--mute);max-width:80ch}
+.idea b{color:var(--ink)}
+code{font-family:var(--f-mono);font-size:.88em;background:var(--soft);border-radius:4px;padding:0 4px}
+
+.bench{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:14px}
+.pane{background:var(--panel);border:1px solid var(--line);border-radius:12px;min-width:0;display:flex;flex-direction:column}
+.pane > h3{margin:0;padding:9px 14px;font-size:12.5px;font-weight:600;letter-spacing:.04em;color:var(--mute);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:8px}
+.code{overflow-x:auto;padding:8px 0;font-family:var(--f-mono);font-size:13px;line-height:1.75}
+.code .ln{display:grid;grid-template-columns:38px 1fr;white-space:pre;padding-right:14px;border-left:3px solid transparent}
+.code .ln span.n{color:var(--com);text-align:right;padding-right:12px;user-select:none;font-size:11.5px}
+.code .ln.on{background:var(--hit);border-left-color:var(--hit-edge)}
+.code .ln.on span.n{color:var(--ink);font-weight:600}
+.t-kw{color:var(--kw);font-weight:600}.t-str{color:var(--str)}.t-num{color:var(--num)}.t-com{color:var(--com);font-style:italic}.t-cls{color:var(--cls)}
+
+.ctl{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid var(--line)}
+.ctl button{font:inherit;font-size:13.5px;font-weight:600;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:8px;padding:5px 12px;cursor:pointer;min-height:34px}
+.ctl button:hover{border-color:var(--accent)}
+.ctl button.primary{background:var(--accent);border-color:var(--accent);color:var(--panel)}
+.ctl button:disabled{opacity:.45;cursor:default}
+.ctl .count{margin-left:auto;font-family:var(--f-mono);font-size:12.5px;color:var(--mute);font-variant-numeric:tabular-nums}
+.ctl label{font-size:12.5px;color:var(--mute);display:flex;align-items:center;gap:6px}
+.ctl input[type=range]{width:90px;accent-color:var(--accent)}
+.prog{height:3px;background:var(--soft)}
+.prog div{height:100%;background:var(--accent);width:0;transition:width .15s}
+
+.side{display:flex;flex-direction:column;gap:14px;min-width:0}
+.note{padding:12px 14px;font-size:14.5px;min-height:66px}
+.note .k{font-family:var(--f-mono);font-size:11.5px;color:var(--accent);font-weight:600;display:block;margin-bottom:2px}
+table.vars{width:100%;border-collapse:collapse;font-family:var(--f-mono);font-size:13px;font-variant-numeric:tabular-nums}
+table.vars td{padding:5px 14px;border-bottom:1px solid var(--line)}
+table.vars td:first-child{color:var(--mute);width:42%}
+table.vars tr.ch td{background:var(--changed)}
+table.vars tr.ch td:last-child{font-weight:600}
+.empty{padding:10px 14px;color:var(--mute);font-size:13px}
+.console{background:var(--console);color:var(--console-ink);font-family:var(--f-mono);font-size:13px;line-height:1.6;padding:10px 14px;min-height:96px;max-height:220px;overflow:auto;white-space:pre-wrap;border-radius:0 0 11px 11px}
+.console .cur{display:inline-block;width:7px;height:14px;background:var(--console-ink);vertical-align:-2px;animation:b 1s steps(1) infinite}
+@keyframes b{50%{opacity:0}}
+.inp{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--line);font-size:13px;color:var(--mute)}
+.inp input{flex:1;min-width:140px;font-family:var(--f-mono);font-size:13px;padding:6px 9px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink)}
+.inp button{font:inherit;font-size:13px;font-weight:600;border:1px solid var(--accent);background:transparent;color:var(--accent);border-radius:7px;padding:4px 10px;cursor:pointer}
+
+@media (max-width:900px){
+  .wrap{grid-template-columns:1fr}
+  nav.rail{position:static}
+  nav.rail .group{display:none}
+  select.mob{display:block}
+  .bench{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){.console .cur{animation:none}.prog div{transition:none}}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>নেস্টেড লুপ <span>স্টেপার</span></h1>
+      <p>CSE110 Lab Assignment 04 · বাইরের আর ভেতরের লুপ কীভাবে ঘোরে, লাইন ধরে দেখো</p>
+    </div>
+    <div class="topright">
+      <div class="legend"><span><i style="background:var(--hit-edge)"></i>এখন যে লাইন চলছে</span><span><i style="background:var(--easy)"></i>এই ধাপে বদলানো ভ্যারিয়েবল</span></div>
+      <button type="button" id="themebtn" class="themebtn" aria-label="থিম বদলাও"><span class="ic" id="themeic">☾</span><span id="themetxt">ডার্ক মোড</span></button>
+    </div>
+  </header>
+
+  <nav class="rail" aria-label="প্রশ্ন তালিকা">
+    <select class="mob" id="mobsel" aria-label="প্রশ্ন বাছাই"></select>
+    <div id="groups"></div>
+  </nav>
+
+  <main>
+    <section class="qcard">
+      <div class="qhead"><span class="pid" id="qid"></span><h2 id="qtitle"></h2><span class="pill l-sub" id="qsub" hidden>জমা দিতে হবে</span><span class="pill" id="qlvl"></span></div>
+      <div class="qsrc" id="qsrc"></div>
+      <p class="qtext" id="qtext"></p>
+      <p class="idea" id="qidea"></p>
+    </section>
+
+    <div class="bench">
+      <section class="pane">
+        <h3><span>কোড</span><span id="codehint"></span></h3>
+        <div class="inp" id="inpbox"><span id="inplabel">ইনপুট</span><input id="inp" type="text" autocomplete="off" spellcheck="false"><button id="runbtn" type="button">এই ইনপুটে চালাও</button></div>
+        <div class="code" id="code"></div>
+        <div class="prog"><div id="prog"></div></div>
+        <div class="ctl">
+          <button type="button" id="b-reset" title="শুরুতে ফেরো">⏮ শুরু</button>
+          <button type="button" id="b-back" title="এক ধাপ পিছে (←)">◀ পিছে</button>
+          <button type="button" id="b-next" class="primary" title="এক ধাপ সামনে (→)">সামনে ▶</button>
+          <button type="button" id="b-play" title="স্বয়ংক্রিয় চালাও (Space)">▷ চালাও</button>
+          <button type="button" id="b-end" title="শেষ ধাপে যাও">শেষ ⏭</button>
+          <label for="speed">গতি <input type="range" id="speed" min="1" max="10" value="5"></label>
+          <span class="count" id="count"></span>
+        </div>
+      </section>
+
+      <div class="side">
+        <section class="pane"><h3><span>এই ধাপে কী হলো</span></h3><div class="note" id="note"></div></section>
+        <section class="pane"><h3><span>ভ্যারিয়েবল</span></h3><div id="vars"></div></section>
+        <section class="pane"><h3><span>আউটপুট</span></h3><div class="console" id="out"></div></section>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+/* ---------- helpers ---------- */
+const idiv=(a,b)=>Math.trunc(a/b);
+const DBL=new Set(["avg","bestAvg","withTax","rawAvg"]);
+function fmt(name,v){
+  if(typeof v==="boolean") return String(v);
+  if(typeof v==="number" && (DBL.has(name) || (typeof cur!=="undefined" && cur && cur.dbl && cur.dbl.includes(name)))){
+    if(Number.isInteger(v)) return v.toFixed(1);
+    const r=Math.round(v*1000)/1000; return (Math.abs(r-v)>1e-12?"≈ ":"")+r;
+  }
+  return String(v);
+}
+const f3=v=>fmt("q",v);
+
+/* ---------- problem definitions ---------- */
+const jd=v=>Number.isInteger(v)?v.toFixed(1):String(v);   /* Java prints a double like 9.0 / 9.67 */
+const P=[
+{id:"E1",lvl:"easy",src:"Lab Task 1",title:"Virtual Arena: মোট জয়",
+ q:"১ থেকে N পর্যন্ত যোদ্ধা, প্রত্যেকে বাকি সবার সাথে একবার লড়ে। নিজের নম্বর প্রতিপক্ষের নম্বর দিয়ে বিভাজ্য হলে জয়। প্রতিটা জয় আর মোট জয় প্রিন্ট করো।",
+ idea:"<b>কৌশল:</b> সব জোড়া দেখতে দুই লুপ — বাইরে বিজয়ী <code>i</code>, ভেতরে প্রতিপক্ষ <code>j</code>। শর্ত <code>i != j && i % j == 0</code>।",
+ code:["int wins = 0;","for (int i = 1; i <= n; i++) {","    for (int j = 1; j <= n; j++) {","        if (i != j && i % j == 0) {","            System.out.println(i + \" beats \" + j);","            wins++;","        }","    }","}","System.out.println(\"Total wins: \" + wins);"],
+ input:"5",inputLabel:"N",
+ run(I,S){const V=S.V; V.n=I.n(); V.wins=0; S.e(0,"মোট জয় গোনার কাউন্টার, দুই লুপের বাইরে");
+  for(V.i=1;;V.i++){ if(!(V.i<=V.n)){S.e(1,`i = ${V.i} > ${V.n} → বাইরের লুপ শেষ`);break;} S.e(1,`বাইরের লুপ: যোদ্ধা i = ${V.i}`);
+    for(V.j=1;;V.j++){ if(!(V.j<=V.n)){S.e(2,`j = ${V.j} > ${V.n} → ভেতরের লুপ শেষ, পরের যোদ্ধা`);break;}
+      const ok=V.i!==V.j&&V.i%V.j===0;
+      S.e(3,V.i===V.j?`i = j = ${V.i}: নিজের সাথে লড়াই নেই`:`${V.i} % ${V.j} = ${V.i%V.j} → ${ok?"<b>জয়</b>":"জয় না"}`);
+      if(ok){S.p(`${V.i} beats ${V.j}\n`);S.e(4,"জয় প্রিন্ট");V.wins++;S.e(5,`wins = ${V.wins}`);} }
+    delete V.j;}
+  S.p(`Total wins: ${V.wins}\n`); S.e(9,"মোট জয় প্রিন্ট");
+ }},
+
+{id:"E2",lvl:"easy",src:"Home Task 1",submit:true,title:"Nimbus Tech: Stress Level",
+ q:"সপ্তাহ k-এর workload = 1 + 2 + … + k। STRL = −(1) − (1+2) − … − (1+2+…+W)।",
+ idea:"<b>কৌশল:</b> ভেতরের লুপ এক সপ্তাহের workload বানায় (<code>k &lt;= week</code>), বাইরের লুপ সেটা STRL থেকে বাদ দেয়। <code>workload = 0</code> প্রতি সপ্তাহে।",
+ code:["int strl = 0;","for (int week = 1; week <= w; week++) {","    int workload = 0;","    for (int k = 1; k <= week; k++) {","        workload += k;","    }","    strl -= workload;","}","System.out.println(\"STRL= \" + strl);"],
+ input:"4",inputLabel:"W (সপ্তাহ)",
+ run(I,S){const V=S.V; V.w=I.n(); V.strl=0; S.e(0,"STRL = 0");
+  for(V.week=1;;V.week++){ if(!(V.week<=V.w)){S.e(1,"সব সপ্তাহ শেষ");break;} S.e(1,`সপ্তাহ ${V.week}`);
+    V.workload=0; S.e(2,"এই সপ্তাহের workload নতুন করে 0");
+    for(V.k=1;;V.k++){ if(!(V.k<=V.week)){S.e(3,`k = ${V.k} > ${V.week} → ভেতরের লুপ শেষ`);break;} const o=V.workload; V.workload+=V.k; S.e(4,`workload = ${o} + ${V.k} = ${V.workload}`);}
+    delete V.k; const o=V.strl; V.strl-=V.workload; S.e(6,`strl = ${o} − ${V.workload} = ${V.strl}`);}
+  S.p(`STRL= ${V.strl}\n`); S.e(8,"প্রিন্ট");
+ }},
+
+{id:"E3",lvl:"easy",src:"Ungraded Task 2",title:"X থেকে Y টা বিজোড়ের যোগফল",
+ q:"N টা টেস্ট কেস। প্রতিটায় X আর Y: X থেকে শুরু করে Y টা বিজোড় সংখ্যার যোগফল।",
+ idea:"<b>কৌশল:</b> বাইরে টেস্ট কেস, ভেতরে <code>while (count &lt; y)</code>। X জোড় হলে এক বাড়িয়ে বিজোড় থেকে শুরু, তারপর <code>+2</code>।",
+ code:["for (int t = 1; t <= n; t++) {","    int x = sc.nextInt(), y = sc.nextInt();","    int sum = 0, count = 0, num = x;","    if (num % 2 == 0) num++;","    while (count < y) {","        sum += num;","        count++;","        num += 2;","    }","    System.out.println(sum);","}"],
+ input:"2 4 3 11 2",inputLabel:"N, তারপর প্রতি কেসে X Y",
+ run(I,S){const V=S.V; V.n=I.n();
+  for(V.t=1;;V.t++){ if(!(V.t<=V.n)){S.e(0,"সব টেস্ট কেস শেষ");break;} S.e(0,`টেস্ট কেস ${V.t}`);
+    V.x=I.n(); V.y=I.n(); S.e(1,`X = ${V.x}, Y = ${V.y}`); V.sum=0;V.count=0;V.num=V.x; S.e(2,"প্রতি কেসে নতুন করে শুরু");
+    if(V.num%2===0){V.num++;S.e(3,`${V.x} জোড় → num = ${V.num}`);} else S.e(3,`${V.x} বিজোড় → X থেকেই শুরু`);
+    while(true){ if(!(V.count<V.y)){S.e(4,`count = ${V.count} = Y → থামো`);break;} S.e(4,`count = ${V.count} < ${V.y}`);
+      const o=V.sum; V.sum+=V.num; S.e(5,`sum = ${o} + ${V.num} = ${V.sum}`); V.count++; S.e(6,`count = ${V.count}`); V.num+=2; S.e(7,`পরের বিজোড় = ${V.num}`);}
+    S.p(V.sum+"\n"); S.e(9,"প্রিন্ট");}
+ }},
+
+{id:"E4",lvl:"easy",src:"Lab Task 2",title:"Hero Academia: গড় ও Badge",
+ q:"S জন ছাত্র, প্রত্যেকে M টা মিশন। প্রতি ছাত্রের গড় পয়েন্ট (২ দশমিক), আর সর্বোচ্চ গড়ের ছাত্রকে badge।",
+ idea:"<b>কৌশল:</b> বাইরে ছাত্র, ভেতরে মিশন। <code>sum = 0</code> প্রতি ছাত্রে। সর্বোচ্চ গড় আর ছাত্র নম্বর সব লুপের বাইরে রাখা।",
+ code:["double bestAvg = -1; int best = 0;","for (int st = 1; st <= s; st++) {","    int sum = 0;","    for (int k = 1; k <= m; k++) {","        sum += sc.nextInt();","    }","    double avg = (double) sum / m;","    System.out.println(\"Average point of Student \" + st + \": \" + Math.round(avg * 100) / 100.0);","    if (avg > bestAvg) { bestAvg = avg; best = st; }","}","System.out.println(\"Student \" + best + \" receives the badge of honour!!\");"],
+ input:"3 3 10 9 8 9 10 10 7 8 9",inputLabel:"S, M, তারপর সব স্কোর",
+ run(I,S){const V=S.V; V.s=I.n(); V.m=I.n(); V.bestAvg=-1; V.best=0; S.e(0,"এখনো কোনো সেরা নেই");
+  for(V.st=1;;V.st++){ if(!(V.st<=V.s)){S.e(1,"সব ছাত্র শেষ");break;} S.e(1,`ছাত্র ${V.st}`);
+    V.sum=0; S.e(2,"এই ছাত্রের যোগফল 0 থেকে");
+    for(V.k=1;;V.k++){ if(!(V.k<=V.m)){S.e(3,"মিশন শেষ");break;} const x=I.n(),o=V.sum; V.sum+=x; S.e(4,`মিশন ${V.k}: ${o} + ${x} = ${V.sum}`);}
+    delete V.k; V.avg=V.sum/V.m; S.e(6,`${V.sum} / ${V.m} = ${fmt("avg",V.avg)}`);
+    const r=Math.round(V.avg*100)/100; S.p(`Average point of Student ${V.st}: ${jd(r)}\n`); S.e(7,`২ দশমিকে: ${jd(r)}`);
+    if(V.avg>V.bestAvg){V.bestAvg=V.avg;V.best=V.st;S.e(8,`নতুন সেরা: ছাত্র ${V.st}`);} else S.e(8,"আগের সেরাই থাকে");}
+  S.p(`\nStudent ${V.best} receives the badge of honour!!\n`); S.e(10,"badge প্রিন্ট");
+ }},
+
+{id:"E5",lvl:"easy",src:"Home Task 3",submit:true,title:"ShopSmart: ট্যাক্সসহ বিক্রি",
+ q:"N দিন, প্রতিদিন ৩টা পণ্যের বিক্রি। মোট ≥ 100 → 2%, ≥ 200 → 5%, ≥ 500 → 10% ট্যাক্স।",
+ idea:"<b>কৌশল:</b> ভেতরের লুপ ঠিক ৩ বার। ট্যাক্সে বড় সীমা আগে চেক করো। <code>/ 100.0</code> দিলে দশমিক থাকে।",
+ code:["for (int day = 1; day <= n; day++) {","    int total = 0;","    for (int p = 1; p <= 3; p++) {","        total += sc.nextInt();","    }","    int taxRate;","    if (total >= 500) taxRate = 10;","    else if (total >= 200) taxRate = 5;","    else if (total >= 100) taxRate = 2;","    else taxRate = 0;","    double withTax = total + total * taxRate / 100.0;","    System.out.println(\"Day \" + day + \": Total Sales with Tax: \" + withTax);","}"],
+ input:"4 30 40 50 40 50 60 100 80 50 200 150 180",inputLabel:"N, তারপর প্রতিদিন ৩টা বিক্রি",
+ run(I,S){const V=S.V; V.n=I.n();
+  for(V.day=1;;V.day++){ if(!(V.day<=V.n)){S.e(0,"সব দিন শেষ");break;} S.e(0,`দিন ${V.day}`); V.total=0; S.e(1,"total = 0");
+    for(V.p=1;;V.p++){ if(!(V.p<=3)){S.e(2,"৩টা পণ্য শেষ");break;} const x=I.n(),o=V.total; V.total+=x; S.e(3,`পণ্য ${V.p}: ${o} + ${x} = ${V.total}`);}
+    delete V.p;
+    if(V.total>=500){V.taxRate=10;S.e(6,`${V.total} ≥ 500 → 10%`);}
+    else if(V.total>=200){S.e(6,`${V.total} < 500`);V.taxRate=5;S.e(7,`${V.total} ≥ 200 → 5%`);}
+    else if(V.total>=100){S.e(6,`${V.total} < 500`);S.e(7,`${V.total} < 200`);V.taxRate=2;S.e(8,`${V.total} ≥ 100 → 2%`);}
+    else {V.taxRate=0;S.e(9,"100-এর কম → ট্যাক্স নেই");}
+    V.withTax=V.total+V.total*V.taxRate/100; S.e(10,`${V.total} + ${V.total}×${V.taxRate}/100.0 = ${jd(V.withTax)}`);
+    S.p(`Day ${V.day}: Total Sales with Tax: ${jd(V.withTax)}\n`); S.e(11,"প্রিন্ট");}
+ }},
+
+{id:"M1",lvl:"mid",src:"Home Task 2",submit:true,title:"Codewarts: Lucky ID",
+ q:"N জন ছাত্রের ID — 2-এর ঘাত (1, 2, 4, 8 …) হলে \"Lucky ID\", নাহলে \"Not Lucky\"।",
+ idea:"<b>কৌশল:</b> ভেতরের while-এ যতক্ষণ 2 দিয়ে ভাগ যায় ভাগ করো। শেষে 1 থাকলে শুধু 2-ই ছিল। <code>temp > 0</code> না দিলে ID 0-তে infinite loop।",
+ code:["for (int i = 1; i <= n; i++) {","    int id = sc.nextInt();","    int temp = id;","    while (temp > 0 && temp % 2 == 0) {","        temp /= 2;","    }","    if (temp == 1) System.out.println(\"Lucky ID\");","    else System.out.println(\"Not Lucky\");","}"],
+ input:"5 1 2 3 8 10",inputLabel:"N, তারপর ID-গুলো",
+ run(I,S){const V=S.V; V.n=I.n();
+  for(V.i=1;;V.i++){ if(!(V.i<=V.n)){S.e(0,"সব ID শেষ");break;} S.e(0,`ছাত্র ${V.i}`); V.id=I.n(); S.e(1,`ID = ${V.id}`); V.temp=V.id; S.e(2,"কপিতে কাজ");
+    while(true){ const ok=V.temp>0&&V.temp%2===0; if(!ok){S.e(3,`temp = ${V.temp}: ${V.temp>0?"2 দিয়ে ভাগ যায় না":"ধনাত্মক না"} → থামো`);break;} S.e(3,`${V.temp} % 2 = 0`); const o=V.temp; V.temp/=2; S.e(4,`${o} / 2 = ${V.temp}`);}
+    if(V.temp===1){S.p("Lucky ID\n");S.e(6,"temp = 1 → শুধু 2 ছিল → Lucky");} else {S.e(6,`temp = ${V.temp} ≠ 1`);S.p("Not Lucky\n");S.e(7,"Not Lucky");}}
+ }},
+
+{id:"M2",lvl:"mid",src:"Lab Task 3",title:"SecureVault: Euclidean GCD",
+ q:"N জোড়া সংখ্যার GCD Euclidean পদ্ধতিতে। কোনো সংখ্যা 0 বা নেগেটিভ হলে 0।",
+ idea:"<b>কৌশল:</b> ভেতরের <code>while (r != 0)</code>: a ← b, b ← r, r ← a % b। ইনভ্যালিড হলে প্রিন্ট করে <code>continue</code>।",
+ code:["for (int pair = 1; pair <= n; pair++) {","    int a = sc.nextInt(), b = sc.nextInt();","    if (a <= 0 || b <= 0) {","        System.out.println(\"Pair \" + pair + \": GCD = 0\");","        continue;","    }","    if (a < b) { int t = a; a = b; b = t; }","    int r = a % b;","    while (r != 0) {","        a = b; b = r;","        r = a % b;","    }","    System.out.println(\"Pair \" + pair + \": GCD = \" + b);","}"],
+ input:"3 40 50 0 32 48 18",inputLabel:"N, তারপর প্রতি জোড়া",
+ run(I,S){const V=S.V; V.n=I.n();
+  for(V.pair=1;;V.pair++){ if(!(V.pair<=V.n)){S.e(0,"সব জোড়া শেষ");break;} S.e(0,`জোড়া ${V.pair}`); delete V.r; V.a=I.n(); V.b=I.n(); S.e(1,`a = ${V.a}, b = ${V.b}`);
+    if(V.a<=0||V.b<=0){S.e(2,"0 বা নেগেটিভ আছে"); S.p(`Pair ${V.pair}: GCD = 0\n`); S.e(3,"0 প্রিন্ট"); S.e(4,"<b>continue</b> → পরের জোড়ায়"); continue;}
+    S.e(2,"দুটোই ধনাত্মক");
+    if(V.a<V.b){const t=V.a;V.a=V.b;V.b=t;S.e(6,`অদলবদল: a = ${V.a}, b = ${V.b}`);} else S.e(6,"a আগে থেকেই বড়");
+    V.r=V.a%V.b; S.e(7,`r = ${V.a} % ${V.b} = ${V.r}`);
+    while(true){ if(!(V.r!==0)){S.e(8,"r = 0 → b-ই GCD");break;} S.e(8,`r = ${V.r} ≠ 0`); V.a=V.b; V.b=V.r; S.e(9,`a ← ${V.a}, b ← ${V.b}`); V.r=V.a%V.b; S.e(10,`r = ${V.a} % ${V.b} = ${V.r}`);}
+    S.p(`Pair ${V.pair}: GCD = ${V.b}\n`); S.e(12,"প্রিন্ট");}
+ }},
+
+{id:"M3",lvl:"mid",src:"Ungraded Task 3",title:"প্রথম N টা প্রাইম",
+ q:"2 থেকে শুরু করে প্রথম N টা প্রাইম প্রিন্ট করো।",
+ idea:"<b>কৌশল:</b> বাইরে <code>while (found &lt; n)</code>, ভেতরে ভাজক গোনা। <code>num++</code> সবসময়, <code>found++</code> শুধু প্রাইম পেলে।",
+ code:["int found = 0, num = 2;","while (found < n) {","    int divisors = 0;","    for (int d = 1; d <= num; d++) {","        if (num % d == 0) divisors++;","    }","    if (divisors == 2) {","        System.out.println(num);","        found++;","    }","    num++;","}"],
+ input:"5",inputLabel:"N",
+ run(I,S){const V=S.V; V.n=I.n(); V.found=0; V.num=2; S.e(0,"2 থেকে শুরু");
+  while(true){ if(!(V.found<V.n)){S.e(1,`found = ${V.n} → থামো`);break;} S.e(1,`found = ${V.found} < ${V.n} → num = ${V.num} পরীক্ষা`);
+    V.divisors=0; S.e(2,"ভাজক গণনা 0");
+    for(V.d=1;V.d<=V.num;V.d++){ if(V.num%V.d===0){V.divisors++;S.e(4,`${V.num} % ${V.d} = 0 → ভাজক (${V.divisors})`);} else S.e(4,`${V.num} % ${V.d} = ${V.num%V.d}`);}
+    delete V.d;
+    if(V.divisors===2){S.e(6,"ঠিক ২টা ভাজক → প্রাইম"); S.p(V.num+"\n"); S.e(7,"প্রিন্ট"); V.found++; S.e(8,`found = ${V.found}`);} else S.e(6,`${V.divisors}টা ভাজক → প্রাইম না`);
+    V.num++; S.e(10,`পরের সংখ্যা ${V.num}`);}
+ }},
+
+{id:"M4",lvl:"mid",src:"Ungraded Task 1",title:"Luminalis: Unusual Number",
+ q:"\"Unusual\" = প্রাইম। X থেকে শুরু করে Y টা unusual সংখ্যার যোগফল।",
+ idea:"<b>কৌশল:</b> M3-এর কাঠামো, কিন্তু ভাজক খুঁজি শুধু <code>d * d &lt;= num</code> পর্যন্ত। ভাজক পেলেই <code>break</code> — শুধু ভেতরের লুপ ভাঙে।",
+ code:["int found = 0, sum = 0, num = x;","while (found < y) {","    boolean unusual = true;","    for (int d = 2; d * d <= num; d++) {","        if (num % d == 0) { unusual = false; break; }","    }","    if (unusual) { sum += num; found++; }","    num++;","}","System.out.println(\"Sum: \" + sum);"],
+ input:"4 5",inputLabel:"X, তারপর Y",
+ run(I,S){const V=S.V; V.x=I.n(); V.y=I.n(); V.found=0; V.sum=0; V.num=Math.max(2,V.x); S.e(0,`num = ${V.num} থেকে শুরু`);
+  while(true){ if(!(V.found<V.y)){S.e(1,`${V.y}টা পাওয়া গেছে → থামো`);break;} S.e(1,`found = ${V.found}, num = ${V.num} পরীক্ষা`);
+    V.unusual=true; S.e(2,"ধরে নিই unusual");
+    for(V.d=2;;V.d++){ if(!(V.d*V.d<=V.num)){S.e(3,`${V.d}×${V.d} = ${V.d*V.d} > ${V.num} → আর দেখার দরকার নেই`);break;}
+      if(V.num%V.d===0){V.unusual=false;S.e(4,`${V.num} % ${V.d} = 0 → ভাজক পেলাম, <b>break</b>`);break;} S.e(4,`${V.num} % ${V.d} = ${V.num%V.d}`);}
+    delete V.d;
+    if(V.unusual){const o=V.sum;V.sum+=V.num;V.found++;S.e(6,`unusual → sum = ${o} + ${V.num} = ${V.sum}, found = ${V.found}`);} else S.e(6,"unusual না → বাদ");
+    V.num++; S.e(7,`পরের সংখ্যা ${V.num}`);}
+  S.p(`Sum: ${V.sum}\n`); S.e(9,"প্রিন্ট");
+ }},
+
+{id:"M5",lvl:"mid",src:"Lab Task 4",title:"NarcissiTech: Armstrong",
+ q:"রেঞ্জের মধ্যে সব Armstrong সংখ্যা: প্রতিটা ডিজিটকে মোট ডিজিট সংখ্যার ঘাতে তুলে যোগ করলে সংখ্যাটাই আসে।",
+ idea:"<b>কৌশল:</b> তিন স্তর — রেঞ্জের সংখ্যা → তার ডিজিট → ডিজিটের ঘাত (Math.pow ছাড়া, <code>power *= d</code>)।",
+ code:["for (int num = start; num <= end; num++) {","    int digits = 0, temp = num;","    do { digits++; temp /= 10; } while (temp > 0);","    int sum = 0;","    temp = num;","    do {","        int d = temp % 10;","        int power = 1;","        for (int k = 1; k <= digits; k++) power *= d;","        sum += power;","        temp /= 10;","    } while (temp > 0);","    if (sum == num) System.out.println(num);","}"],
+ input:"152 154",inputLabel:"শুরু, তারপর শেষ (ছোট রেঞ্জ রাখো)",
+ run(I,S){const V=S.V; V.start=I.n(); V.end=I.n();
+  for(V.num=V.start;;V.num++){ if(!(V.num<=V.end)){S.e(0,"রেঞ্জ শেষ");break;} S.e(0,`num = ${V.num}`);
+    for(const k of ["d","power","k"]) delete V[k];
+    V.digits=0; V.temp=V.num; S.e(1,"ডিজিট গোনা শুরু");
+    do{V.digits++;V.temp=idiv(V.temp,10);S.e(2,`digits = ${V.digits}, temp = ${V.temp}`);}while(V.temp>0);
+    V.sum=0; S.e(3,"sum = 0"); V.temp=V.num; S.e(4,"আবার temp = num");
+    do{ S.e(5,"পরের ডিজিট"); V.d=V.temp%10; S.e(6,`d = ${V.d}`); V.power=1; S.e(7,"power = 1");
+      for(V.k=1;V.k<=V.digits;V.k++){const o=V.power;V.power*=V.d;S.e(8,`k = ${V.k}: ${o} × ${V.d} = ${V.power}`);} delete V.k;
+      const o=V.sum; V.sum+=V.power; S.e(9,`${V.d}^${V.digits} = ${V.power} → sum = ${o} + ${V.power} = ${V.sum}`);
+      V.temp=idiv(V.temp,10); S.e(10,`temp = ${V.temp}`); S.e(11,V.temp>0?"আরো ডিজিট আছে":"ডিজিট শেষ");}while(V.temp>0);
+    if(V.sum===V.num){S.p(V.num+"\n");S.e(12,`${V.sum} = ${V.num} → <b>Armstrong</b>`);} else S.e(12,`${V.sum} ≠ ${V.num}`);}
+ }},
+
+{id:"M6",lvl:"mid",src:"Ungraded Task 4",title:"Pythagorean Triple",
+ q:"a + b + c = P আর a² + b² = c², যেখানে a < b < c। সব triple আর মোট সংখ্যা।",
+ idea:"<b>কৌশল:</b> a, b ঠিক হলে <code>c = P − a − b</code>। তাই দুই লুপ। a সবচেয়ে ছোট, তাই <code>3a &lt; P</code>; <code>c &lt;= b</code> হলে <code>break</code>।",
+ code:["int count = 0;","for (int a = 1; 3 * a < p; a++) {","    for (int b = a + 1; b < p; b++) {","        int c = p - a - b;","        if (c <= b) break;","        if (a * a + b * b == c * c) {","            System.out.println(a + \" \" + b + \" \" + c);","            count++;","        }","    }","}","if (count == 0) System.out.println(0);","else System.out.println(\"Total- \" + count);"],
+ input:"30",inputLabel:"P (৬০ দিলে অনেক ধাপ)",
+ run(I,S){const V=S.V; V.p=I.n(); V.count=0; S.e(0,"count = 0");
+  for(V.a=1;;V.a++){ if(!(3*V.a<V.p)){S.e(1,`3 × ${V.a} = ${3*V.a} ≥ ${V.p} → শেষ`);break;} S.e(1,`a = ${V.a}`);
+    for(V.b=V.a+1;V.b<V.p;V.b++){ V.c=V.p-V.a-V.b; S.e(3,`b = ${V.b} → c = ${V.p} − ${V.a} − ${V.b} = ${V.c}`);
+      if(V.c<=V.b){S.e(4,`c ≤ b → আর হবে না, <b>break</b>`);break;}
+      const L=V.a*V.a+V.b*V.b,R=V.c*V.c;
+      if(L===R){S.e(5,`${L} = ${R} ✓`); S.p(`${V.a} ${V.b} ${V.c}\n`); S.e(6,"প্রিন্ট"); V.count++; S.e(7,`count = ${V.count}`);} else S.e(5,`${V.a}² + ${V.b}² = ${L}, ${V.c}² = ${R} ✗`);}
+    delete V.b; delete V.c;}
+  if(V.count===0){S.p("0\n");S.e(11,"একটাও নেই");} else {S.e(11,"count > 0");S.p(`Total- ${V.count}\n`);S.e(12,"মোট প্রিন্ট");}
+ }},
+
+{id:"H1",lvl:"hard",src:"Ungraded Task 6",title:"CampusBites: Discount Power",
+ q:"ডান থেকে ডিজিট: 0 → বাদ, 9 → Expired (থামো), জোড় → মান যোগ, অন্য বিজোড় → 5। Expired → invalid; Power ≥ 20 → Free Meal।",
+ idea:"<b>কৌশল:</b> <code>continue</code>-র আগে <code>code /= 10</code> — নাহলে infinite loop। 9 পেলে flag + <code>break</code>।",
+ code:["for (int i = 1; i <= n; i++) {","    int code = sc.nextInt();","    int power = 0;","    boolean expired = false;","    while (code > 0) {","        int d = code % 10;","        code /= 10;","        if (d == 0) continue;","        if (d == 9) { expired = true; break; }","        if (d % 2 == 0) power += d;","        else power += 5;","    }","    if (expired) System.out.println(\"EXPIRED TAG DETECTED! Promo Code \" + i + \" is invalid.\");","    else if (power >= 20) System.out.println(\"Promo Code \" + i + \" SUCCESS! Free Meal unlocked. (Discount Power: \" + power + \")\");","    else System.out.println(\"Promo Code \" + i + \" accepted, but no free meal. (Final Power: \" + power + \")\");","}"],
+ input:"3 821406 41926 13010",inputLabel:"কোড সংখ্যা, তারপর কোডগুলো",
+ run(I,S){const V=S.V; V.n=I.n();
+  for(V.i=1;;V.i++){ if(!(V.i<=V.n)){S.e(0,"সব কোড শেষ");break;} S.e(0,`Promo code ${V.i}`); delete V.d;
+    V.code=I.n(); S.e(1,`code = ${V.code}`); V.power=0; S.e(2,"power = 0"); V.expired=false; S.e(3,"expired = false");
+    while(true){ if(!(V.code>0)){S.e(4,"ডিজিট শেষ");break;} S.e(4,`code = ${V.code} > 0`);
+      V.d=V.code%10; S.e(5,`d = ${V.d}`); V.code=idiv(V.code,10); S.e(6,`code = ${V.code} (আগেই কমালাম)`);
+      if(V.d===0){S.e(7,"0 → placeholder, <b>continue</b>");continue;} S.e(7,"0 না");
+      if(V.d===9){V.expired=true;S.e(8,"9 → Expired! flag = true, <b>break</b>");break;} S.e(8,"9 না");
+      const o=V.power; if(V.d%2===0){V.power+=V.d;S.e(9,`জোড় → power = ${o} + ${V.d} = ${V.power}`);} else {S.e(9,"বিজোড়");V.power+=5;S.e(10,`power = ${o} + 5 = ${V.power}`);} }
+    if(V.expired){S.p(`EXPIRED TAG DETECTED! Promo Code ${V.i} is invalid.\n`);S.e(12,"expired → invalid");}
+    else if(V.power>=20){S.e(12,"expired না");S.p(`Promo Code ${V.i} SUCCESS! Free Meal unlocked. (Discount Power: ${V.power})\n`);S.e(13,`${V.power} ≥ 20 → Free Meal`);}
+    else {S.e(12,"expired না");S.e(13,`${V.power} < 20`);S.p(`Promo Code ${V.i} accepted, but no free meal. (Final Power: ${V.power})\n`);S.e(14,"minor discount");}}
+ }},
+
+{id:"H2",lvl:"hard",src:"Ungraded Task 5",title:"FIFA 2026: Gate Pass ID",
+ q:"ডান থেকে ডিজিট: 0/5 → বাদ, অন্য জোড় → ডানে বসাও, অন্য বিজোড় → 0 বসাও। ID ≥ 500 → ACCEPTED।",
+ idea:"<b>কৌশল:</b> ডানে বসানো = <code>pass * 10 + d</code>। স্যাম্পলে 914 → 400-কে ACCEPTED লেখা, কিন্তু 400 < 500 → REJECTED।",
+ code:["for (int fan = 1; fan <= n; fan++) {","    int code = sc.nextInt();","    int pass = 0;","    while (code > 0) {","        int d = code % 10;","        code /= 10;","        if (d == 0 || d == 5) continue;","        if (d % 2 == 0) pass = pass * 10 + d;","        else pass = pass * 10 + 0;","    }","    if (pass >= 500) System.out.println(\"Fan \" + fan + \" ACCEPTED! (Gate Pass ID: \" + pass + \")\");","    else System.out.println(\"Fan \" + fan + \" REJECTED! (Gate Pass ID: \" + pass + \")\");","}"],
+ input:"4 1742 6802 583 914",inputLabel:"টিকিট সংখ্যা, তারপর কোডগুলো",
+ run(I,S){const V=S.V; V.n=I.n();
+  for(V.fan=1;;V.fan++){ if(!(V.fan<=V.n)){S.e(0,"সব ফ্যান শেষ");break;} S.e(0,`ফ্যান ${V.fan}`); delete V.d;
+    V.code=I.n(); S.e(1,`code = ${V.code}`); V.pass=0; S.e(2,"pass = 0");
+    while(true){ if(!(V.code>0)){S.e(3,"ডিজিট শেষ");break;} S.e(3,`code = ${V.code}`);
+      V.d=V.code%10; S.e(4,`d = ${V.d}`); V.code=idiv(V.code,10); S.e(5,`code = ${V.code}`);
+      if(V.d===0||V.d===5){S.e(6,`${V.d} → blind spot, <b>continue</b>`);continue;} S.e(6,"বাদ না");
+      const o=V.pass; if(V.d%2===0){V.pass=o*10+V.d;S.e(7,`জোড় → ${o}×10 + ${V.d} = ${V.pass}`);} else {S.e(7,"বিজোড়");V.pass=o*10;S.e(8,`→ 0 বসাও: ${o}×10 + 0 = ${V.pass}`);} }
+    if(V.pass>=500){S.p(`Fan ${V.fan} ACCEPTED! (Gate Pass ID: ${V.pass})\n`);S.e(10,`${V.pass} ≥ 500`);} else {S.e(10,`${V.pass} < 500`);S.p(`Fan ${V.fan} REJECTED! (Gate Pass ID: ${V.pass})\n`);S.e(11,"REJECTED");}}
+ }},
+
+{id:"H3",lvl:"hard",src:"Home Task 4",submit:true,dbl:["total"],title:"GymFit Elite: গড় ক্যালরি",
+ q:"সর্বোচ্চ ৩টা exercise। > 350 → 50% বোনাস; সব < 200 → 10% penalty; raw গড় > 400 → প্রতি exercise-এ +50। গড় (৩ দশমিক)।",
+ idea:"<b>কৌশল:</b> ভেতরের লুপে তিনটা জিনিস রাখো: <code>rawSum</code>, বোনাসসহ <code>total</code>, আর <code>allBelow200</code> flag। নিয়মগুলো লুপ শেষে।",
+ code:["for (int m = 1; m <= members; m++) {","    int ex = sc.nextInt();","    if (ex > 3) { System.out.println(\"(Can't do more than 3 exercise)\"); ex = 3; }","    int rawSum = 0; double total = 0; boolean allBelow200 = true;","    for (int e = 1; e <= ex; e++) {","        int cal = sc.nextInt();","        rawSum += cal;","        if (cal > 350) total += cal * 1.5;","        else total += cal;","        if (cal >= 200) allBelow200 = false;","    }","    double rawAvg = (double) rawSum / ex;","    if (allBelow200) total = total * 0.9;","    if (rawAvg > 400) total += 50 * ex;","    System.out.printf(\"Average calories earned per day for Member-%d: %.3f%n\", m, total / ex);","}"],
+ input:"2 3 300 400 800 4 150 100 80",inputLabel:"সদস্য, তারপর প্রতিজনের exercise সংখ্যা ও ক্যালরি",
+ run(I,S){const V=S.V; V.members=I.n();
+  for(V.m=1;;V.m++){ if(!(V.m<=V.members)){S.e(0,"সব সদস্য শেষ");break;} S.e(0,`সদস্য ${V.m}`); for(const k of ["cal","rawAvg"]) delete V[k];
+    V.ex=I.n(); S.e(1,`exercise = ${V.ex}`);
+    if(V.ex>3){S.p("(Can't do more than 3 exercise)\n");V.ex=3;S.e(2,"৩-এর বেশি → মেসেজ, ex = 3");} else S.e(2,"৩ বা কম, ঠিক আছে");
+    V.rawSum=0;V.total=0;V.allBelow200=true; S.e(3,"প্রতি সদস্যে নতুন করে");
+    for(V.e=1;;V.e++){ if(!(V.e<=V.ex)){S.e(4,"exercise শেষ");break;} S.e(4,`exercise ${V.e}`);
+      V.cal=I.n(); S.e(5,`cal = ${V.cal}`); V.rawSum+=V.cal; S.e(6,`rawSum = ${V.rawSum}`);
+      const o=V.total; if(V.cal>350){V.total+=V.cal*1.5;S.e(7,`${V.cal} > 350 → ${V.cal}×1.5 = ${V.cal*1.5}, total = ${jd(V.total)}`);} else {S.e(7,`${V.cal} ≤ 350`);V.total+=V.cal;S.e(8,`total = ${jd(o)} + ${V.cal} = ${jd(V.total)}`);}
+      if(V.cal>=200){V.allBelow200=false;S.e(9,`${V.cal} ≥ 200 → allBelow200 = false`);} else S.e(9,`${V.cal} < 200`);}
+    delete V.e; V.rawAvg=V.rawSum/V.ex; S.e(11,`rawAvg = ${V.rawSum} / ${V.ex} = ${jd(V.rawAvg)}`);
+    if(V.allBelow200){const o=V.total;V.total=V.total*0.9;S.e(12,`সব < 200 → ${jd(o)} × 0.9 = ${jd(V.total)}`);} else S.e(12,"penalty নেই");
+    if(V.rawAvg>400){const o=V.total;V.total+=50*V.ex;S.e(13,`rawAvg > 400 → ${jd(o)} + 50×${V.ex} = ${jd(V.total)}`);} else S.e(13,"ফ্ল্যাট বোনাস নেই");
+    const avg=(V.total/V.ex).toFixed(3); S.p(`Average calories earned per day for Member-${V.m}: ${avg}\n`); S.e(14,`${jd(V.total)} / ${V.ex} = ${avg}`);}
+ }},
+
+{id:"H4",lvl:"hard",src:"Ungraded Task 7",title:"World Cup Final: Argentina",
+ q:"Stamina 3। Wave k-তে k জন defender। 10 → fake whistle (continue), অন্য জোড় → stamina −1, বিজোড় → tackle (wave শেষ)। Stamina 0 → পুরো ম্যাচ শেষ।",
+ idea:"<b>কৌশল:</b> ভেতরের <code>break</code> শুধু wave থামায়। ম্যাচ থামাতে <code>collapsed</code> flag, তারপর বাইরেও <code>break</code>।",
+ code:["int stamina = 3, goals = 0; boolean collapsed = false;","for (int wave = 1; wave <= waves; wave++) {","    boolean ruined = false;","    for (int def = 1; def <= wave; def++) {","        int code = sc.nextInt();","        if (code == 10) { System.out.println(\"Blows a fake whistle! Defender bypassed.\"); continue; }","        if (code % 2 == 0) {","            stamina--;","            System.out.println(\"Brute force used. Stamina remaining: \" + stamina);","            if (stamina == 0) { System.out.println(\"Players collapsed ... Match abandoned ...\"); collapsed = true; break; }","        } else {","            System.out.println(\"Tackled by Spain! Wave ruined.\");","            ruined = true; break;","        }","    }","    if (collapsed) break;","    if (!ruined) { System.out.println(\"GOAL ARGENTINA!\"); goals++; }","}","System.out.println(\"Final Whistle! Argentina scored: \" + goals + \" goals.\");"],
+ input:"3 10 7 8 10 2",inputLabel:"wave সংখ্যা, তারপর কোডগুলো (অন্য স্যাম্পল: 4 4 6 2)",
+ run(I,S){const V=S.V; V.waves=I.n(); V.stamina=3; V.goals=0; V.collapsed=false; S.e(0,"stamina 3 দিয়ে শুরু");
+  for(V.wave=1;;V.wave++){ if(!(V.wave<=V.waves)){S.e(1,"সব wave শেষ");break;} S.e(1,`Wave ${V.wave}: ${V.wave} জন defender`); delete V.code;
+    V.ruined=false; S.e(2,"ruined = false");
+    for(V.def=1;;V.def++){ if(!(V.def<=V.wave)){S.e(3,"সব defender পার!");break;} S.e(3,`Defender ${V.def}`);
+      V.code=I.n(); S.e(4,`code = ${V.code}`);
+      if(V.code===10){S.p("Blows a fake whistle! Defender bypassed.\n");S.e(5,"10 → fake whistle, <b>continue</b> (stamina অক্ষত)");continue;} S.e(5,"10 না");
+      if(V.code%2===0){S.e(6,"জোড় → brute force"); V.stamina--; S.e(7,`stamina = ${V.stamina}`); S.p(`Brute force used. Stamina remaining: ${V.stamina}\n`); S.e(8,"প্রিন্ট");
+        if(V.stamina===0){S.p("Players collapsed from exhaustion!\nMatch abandoned due to fatigue.\n");V.collapsed=true;S.e(9,"stamina 0 → collapsed = true, <b>break</b> (শুধু ভেতরের লুপ)");break;} S.e(9,"stamina এখনো আছে");}
+      else {S.e(6,"বিজোড়");S.p("Tackled by Spain! Wave ruined.\n");S.e(11,"tackle!");V.ruined=true;S.e(12,"ruined = true, <b>break</b> → এই wave শেষ");break;}}
+    delete V.def;
+    if(V.collapsed){S.p("\n");S.e(15,"collapsed → বাইরের লুপও <b>break</b>");break;} S.e(15,"collapsed না");
+    if(!V.ruined){S.p("GOAL ARGENTINA!\n");V.goals++;S.e(16,`GOAL! goals = ${V.goals}`);} else S.e(16,"wave ruined → গোল নেই");
+    S.p("\n");}
+  S.p(`Final Whistle! Argentina scored: ${V.goals} goals.\n`); S.e(18,"শেষ বাঁশি");
+ }},
+
+{id:"T1",lvl:"trace",src:"Lab Task 5 · class T1",title:"ট্রেসিং: class T1",
+ q:"কোডটা ট্রেস করে আউটপুট লেখো।",
+ idea:"<b>ফাঁদ:</b> <code>y = x - 3</code> প্রতি বাইরের ঘুরে y রিসেট। <code>- y * 3</code>-এ y নেগেটিভ হলে যোগ হয়। <code>x++</code> লাইন কখনো চলে না।",
+ code:["int x = 0, y = 0;","int sum = 0;","while (x < 4){","    y = x - 3;","    while (y < 3){","        sum = (sum % 3) + x - y * 3 ;","        System.out.println(sum);","        y = y + 1;","    }","    if (x > 5){","        x++;","    }","    else{","        x += 2;","    }","}"],
+ input:null,
+ run(I,S){const V=S.V; V.x=0;V.y=0;S.e(0,"x = 0, y = 0"); V.sum=0;S.e(1,"sum = 0");
+  while(true){ if(!(V.x<4)){S.e(2,`x = ${V.x} < 4 মিথ্যা → শেষ`);break;} S.e(2,`x = ${V.x} < 4 সত্য`);
+    V.y=V.x-3; S.e(3,`y = ${V.x} − 3 = ${V.y} (ভেতরের লুপ নতুন করে শুরু)`);
+    while(true){ if(!(V.y<3)){S.e(4,`y = ${V.y} < 3 মিথ্যা → ভেতরের লুপ শেষ`);break;} S.e(4,`y = ${V.y} < 3`);
+      const m=V.sum%3; V.sum=m+V.x-V.y*3; S.e(5,`(sum % 3) = ${m}; ${m} + ${V.x} − (${V.y}×3) = ${m} + ${V.x} − (${V.y*3}) = <b>${V.sum}</b>`);
+      S.p(V.sum+"\n"); S.e(6,`${V.sum} প্রিন্ট`); V.y++; S.e(7,`y = ${V.y}`);}
+    if(V.x>5){S.e(9,"x > 5");V.x++;S.e(10,`x = ${V.x}`);} else {S.e(9,`x = ${V.x} > 5 মিথ্যা`);V.x+=2;S.e(13,`x = ${V.x}`);} }
+ }},
+
+{id:"T2",lvl:"trace",src:"Home Task 5 · class T3",submit:true,title:"ট্রেসিং: class T3",
+ q:"কোডটা ট্রেস করে আউটপুট লেখো।",
+ idea:"<b>ফাঁদ:</b> <code>y = x - 3;</code> এর পরেই <code>y = 40;</code> — প্রথমটা মুছে যায়। শর্ত strict, তাই 46-এ শুধু একবার দ্বিতীয় শাখা।",
+ code:["int x = 0, y = 0;","int sum = 0;","while (x < 10){","    y = x - 3;","    y = 40;","    while (y > 22){","        if ((sum > 30) && (sum < 40)){","            sum = sum + x * 2 ;","        }","        else if ((sum > 40) && (sum < 50)){","            sum = sum + x * 3;","        }","        else {","            sum = sum + 23;","        }","        System.out.println(sum);","        y = y - 10;","    }","    x += 2;","}"],
+ input:null,
+ run(I,S){const V=S.V; V.x=0;V.y=0;S.e(0,"x = 0, y = 0"); V.sum=0;S.e(1,"sum = 0");
+  while(true){ if(!(V.x<10)){S.e(2,`x = ${V.x} < 10 মিথ্যা → শেষ`);break;} S.e(2,`x = ${V.x}`);
+    V.y=V.x-3; S.e(3,`y = ${V.y} … কিন্তু পরের লাইনেই বদলাবে`); V.y=40; S.e(4,"y = 40 (আগেরটা মুছে গেল)");
+    while(true){ if(!(V.y>22)){S.e(5,`y = ${V.y} > 22 মিথ্যা → ভেতরের লুপ শেষ`);break;} S.e(5,`y = ${V.y} > 22`);
+      const o=V.sum;
+      if(V.sum>30&&V.sum<40){S.e(6,`30 < ${o} < 40 সত্য`);V.sum+=V.x*2;S.e(7,`${o} + ${V.x}×2 = ${V.sum}`);}
+      else if(V.sum>40&&V.sum<50){S.e(6,`30 < ${o} < 40 মিথ্যা`);S.e(9,`40 < ${o} < 50 সত্য`);V.sum+=V.x*3;S.e(10,`${o} + ${V.x}×3 = ${V.sum}`);}
+      else {S.e(6,`30 < ${o} < 40 মিথ্যা`);S.e(9,`40 < ${o} < 50 মিথ্যা`);V.sum+=23;S.e(13,`else: ${o} + 23 = ${V.sum}`);}
+      S.p(V.sum+"\n"); S.e(15,`${V.sum} প্রিন্ট`); V.y-=10; S.e(16,`y = ${V.y}`);}
+    V.x+=2; S.e(18,`x = ${V.x}`);}
+ }},
+
+{id:"T3",lvl:"trace",src:"Home Task 6 · class Tracing",submit:true,title:"ট্রেসিং: class Tracing",
+ q:"কোডটা ট্রেস করে আউটপুট লেখো।",
+ idea:"<b>ফাঁদ:</b> <code>j = i + 2</code>, তাই <code>while (j &lt; i)</code> কখনো চলে না। শেষে <code>++r</code> আগে বাড়ে, <code>19/3 = 6</code>।",
+ code:["int sum = 0, r = 0, i = 10, j = -5000;","while (i < 10000) {","    r = (i%2) + 1;","    j = i + 2;","    while (j < i){","        r = 2-4+6-8+10-12;","        j++;","    }","    sum = i % r + (i * r) - j + 5;","    System.out.println(sum);","    j--;","    if (i > 18) {","        sum += (++r) + i/3 + r + 12;","        break;","    }","    else{","        i += 3;","    }","}","System.out.println(sum);"],
+ input:null,
+ run(I,S){const V=S.V; V.sum=0;V.r=0;V.i=10;V.j=-5000; S.e(0,"শুরুর মান");
+  while(true){ if(!(V.i<10000)){S.e(1,"i ≥ 10000 → শেষ");break;} S.e(1,`i = ${V.i} < 10000`);
+    V.r=(V.i%2)+1; S.e(2,`${V.i} % 2 = ${V.i%2} → r = ${V.r}`); V.j=V.i+2; S.e(3,`j = ${V.j}`);
+    S.e(4,`${V.j} < ${V.i} মিথ্যা → ভেতরের লুপ <b>একবারও চলে না</b>`);
+    V.sum=V.i%V.r+V.i*V.r-V.j+5; S.e(8,`${V.i}%${V.r} + ${V.i}×${V.r} − ${V.j} + 5 = ${V.i%V.r} + ${V.i*V.r} − ${V.j} + 5 = <b>${V.sum}</b>`);
+    S.p(V.sum+"\n"); S.e(9,`${V.sum} প্রিন্ট`); V.j--; S.e(10,`j = ${V.j} (পরের ঘুরে আবার বদলাবে)`);
+    if(V.i>18){S.e(11,`${V.i} > 18 সত্য`); const o=V.sum; V.r++; V.sum=o+V.r+idiv(V.i,3)+V.r+12; S.e(12,`<code>++r</code> → r = ${V.r}<br>sum = ${o} + ${V.r} + ${V.i}/3(=${idiv(V.i,3)}) + ${V.r} + 12 = ${V.sum}`); S.e(13,"<b>break</b>"); break;}
+    S.e(11,`${V.i} > 18 মিথ্যা`); V.i+=3; S.e(16,`i = ${V.i}`);}
+  S.p(V.sum+"\n"); S.e(19,"লুপের পরে শেষ প্রিন্ট");
+ }},
+];
+
+/* ---------- engine ---------- */
+const LV={easy:["সহজ","l-easy","var(--easy)"],mid:["মাঝারি","l-mid","var(--mid)"],hard:["কঠিন","l-hard","var(--hard)"],trace:["ট্রেসিং","l-trace","var(--trace)"]};
+const MAX=10000;
+function simulate(prob,inputText){
+  const nums=(inputText||"").match(/-?\d+/g)?.map(Number)||[];
+  let k=0; const steps=[]; const V={}; let out="";
+  class Stop extends Error{}
+  const I={n(){ if(k>=nums.length){ steps.push({line:steps.length?steps[steps.length-1].line:0,V:{...V},out,note:"ইনপুট শেষ হয়ে গেছে। ইনপুট বক্সে আরো সংখ্যা দাও।"}); throw new Stop(); } return nums[k++]; }};
+  const S={V,p(s){out+=s;},e(line,note){ if(steps.length>=MAX){steps.push({line,V:{...V},out,note:`${MAX} ধাপের পরে থামানো হলো। ছোট ইনপুট দাও।`});throw new Stop();} steps.push({line,V:{...V},out,note:note||""}); }};
+  try{prob.run(I,S);}catch(e){ if(!(e instanceof Stop)) throw e; }
+  steps.push({line:-1,V:{...V},out,note:"প্রোগ্রাম শেষ। আউটপুট ডান দিকে।"});
+  return steps;
+}
+
+const TOK=/(\/\/[^\n]*)|("(?:\\.|[^"\\])*")|\b(public|class|static|void|int|double|boolean|char|String|new|for|while|do|if|else|break|continue|return|true|false)\b|\b(\d+(?:\.\d+)?)\b|\b(Scanner|System|Math)\b/g;
+const esc=s=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+function hl(line){let o="",last=0;line.replace(TOK,(m,c,s,kw,n,cl,i)=>{o+=esc(line.slice(last,i));const t=c?"com":s?"str":kw?"kw":n?"num":"cls";o+=`<span class="t-${t}">${esc(m)}</span>`;last=i+m.length;return m;});return o+esc(line.slice(last));}
+
+let cur=null, steps=[], idx=0, timer=null;
+const $=id=>document.getElementById(id);
+
+function buildNav(){
+  const groups={easy:[],mid:[],hard:[],trace:[]};
+  P.forEach(p=>groups[p.lvl].push(p));
+  $("groups").innerHTML=Object.entries(groups).map(([l,arr])=>`<div class="group"><h2><i style="background:${LV[l][2]}"></i>${LV[l][0]}</h2><ul>${arr.map(p=>`<li><button type="button" data-id="${p.id}"><b>${p.id}</b><span>${p.title}</span></button></li>`).join("")}</ul></div>`).join("");
+  $("groups").addEventListener("click",e=>{const b=e.target.closest("button[data-id]"); if(b) location.hash=b.dataset.id;});
+  $("mobsel").innerHTML=Object.entries(groups).map(([l,arr])=>`<optgroup label="${LV[l][0]}">${arr.map(p=>`<option value="${p.id}">${p.id} · ${p.title}</option>`).join("")}</optgroup>`).join("");
+  $("mobsel").addEventListener("change",e=>location.hash=e.target.value);
+}
+
+function load(id){
+  const p=P.find(x=>x.id===id)||P[0]; cur=p; stop();
+  document.querySelectorAll("#groups button").forEach(b=>b.setAttribute("aria-current",b.dataset.id===p.id?"true":"false"));
+  $("mobsel").value=p.id;
+  $("qid").textContent=p.id; $("qtitle").textContent=p.title; $("qsrc").textContent=p.src;
+  $("qlvl").textContent=LV[p.lvl][0]; $("qlvl").className="pill "+LV[p.lvl][1];
+  $("qsub").hidden=!p.submit; $("qtext").innerHTML=p.q; $("qidea").innerHTML=p.idea;
+  $("codehint").textContent=p.lvl==="trace"?"main-এর ভেতরের অংশ":"মূল যুক্তি (import ও Scanner বাদে)";
+  $("code").innerHTML=p.code.map((l,i)=>`<div class="ln" data-l="${i}"><span class="n">${i+1}</span><span>${hl(l)||" "}</span></div>`).join("");
+  $("inpbox").hidden=!p.input; if(p.input){$("inp").value=p.input; $("inplabel").textContent=p.inputLabel||"ইনপুট";}
+  run();
+}
+function run(){ steps=simulate(cur,cur.input?$("inp").value:""); idx=0; render(); }
+
+function render(){
+  const s=steps[idx], prev=idx>0?steps[idx-1]:null;
+  document.querySelectorAll("#code .ln").forEach(el=>el.classList.toggle("on",+el.dataset.l===s.line));
+  const on=document.querySelector("#code .ln.on");
+  if(on){const box=$("code"), top=on.offsetTop-box.offsetTop; if(top<box.scrollTop||top>box.scrollTop+box.clientHeight-30) on.scrollIntoView({block:"nearest"});}
+  $("note").innerHTML=(s.line>=0?`<span class="k">লাইন ${s.line+1}</span>`:`<span class="k">সমাপ্ত</span>`)+s.note;
+  const keys=Object.keys(s.V);
+  $("vars").innerHTML=keys.length?`<table class="vars"><tbody>${keys.map(k=>{const ch=!prev||prev.V[k]!==s.V[k];return `<tr class="${ch&&idx>0?"ch":""}"><td>${k}</td><td>${fmt(k,s.V[k])}</td></tr>`;}).join("")}</tbody></table>`:`<div class="empty">এখনো কোনো ভ্যারিয়েবল নেই</div>`;
+  $("out").innerHTML=esc(s.out)+(s.line>=0?'<span class="cur"></span>':"");
+  $("out").scrollTop=$("out").scrollHeight;
+  $("count").textContent=`ধাপ ${idx+1} / ${steps.length}`;
+  $("prog").style.width=(steps.length>1?idx/(steps.length-1)*100:100)+"%";
+  $("b-back").disabled=$("b-reset").disabled=idx===0;
+  $("b-next").disabled=$("b-end").disabled=idx===steps.length-1;
+}
+function go(d){ idx=Math.max(0,Math.min(steps.length-1,idx+d)); render(); if(idx===steps.length-1) stop(); }
+function delay(){ return 1100-(+$("speed").value)*100; }
+function play(){ if(timer){stop();return;} if(idx===steps.length-1) idx=0; $("b-play").textContent="❚❚ থামাও"; const tick=()=>{go(1); if(timer) timer=setTimeout(tick,delay());}; timer=setTimeout(tick,delay()); }
+function stop(){ clearTimeout(timer); timer=null; $("b-play").textContent="▷ চালাও"; }
+
+$("b-next").onclick=()=>{stop();go(1);};
+$("b-back").onclick=()=>{stop();go(-1);};
+$("b-reset").onclick=()=>{stop();idx=0;render();};
+$("b-end").onclick=()=>{stop();idx=steps.length-1;render();};
+$("b-play").onclick=play;
+$("runbtn").onclick=()=>{stop();run();};
+$("inp").addEventListener("keydown",e=>{if(e.key==="Enter"){stop();run();}});
+document.addEventListener("keydown",e=>{
+  if(e.target.matches("input,select,textarea")) return;
+  if(e.key==="ArrowRight"){stop();go(1);e.preventDefault();}
+  else if(e.key==="ArrowLeft"){stop();go(-1);e.preventDefault();}
+  else if(e.key===" "){play();e.preventDefault();}
+});
+window.addEventListener("hashchange",()=>load(location.hash.slice(1)));
+
+/* theme toggle: sets data-theme on the root; CSS tokens already cover both */
+const root=document.documentElement;
+function isDark(){const t=root.getAttribute("data-theme"); if(t) return t==="dark"; return window.matchMedia("(prefers-color-scheme: dark)").matches;}
+function paintThemeBtn(){const d=isDark(); $("themeic").textContent=d?"☀":"☾"; $("themetxt").textContent=d?"লাইট মোড":"ডার্ক মোড";}
+try{const saved=localStorage.getItem("nestedstepper-theme"); if(saved==="dark"||saved==="light") root.setAttribute("data-theme",saved);}catch(e){}
+$("themebtn").onclick=()=>{const next=isDark()?"light":"dark"; root.setAttribute("data-theme",next); try{localStorage.setItem("nestedstepper-theme",next);}catch(e){} paintThemeBtn();};
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change",paintThemeBtn);
+new MutationObserver(paintThemeBtn).observe(root,{attributes:true,attributeFilter:["data-theme"]});
+paintThemeBtn();
+
+buildNav();
+load(location.hash.slice(1)||"E1");
+/* open on a meaningful mid-run frame so the first view shows the stepper working */
+if(!location.hash){ idx=Math.min(6,steps.length-1); render(); }
+</script>
+
+</body>
+</html>
